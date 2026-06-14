@@ -1,0 +1,44 @@
+name: nest_within
+description: "The Nest — come home to yourself. A personal sanctuary for nervous system care and emotional well-being."
+publish_to: 'none'
+
+# Single source of truth for the version is /version.json — tool/gen-version.sh
+# writes this line and lib/version.dart. Do not hand-edit the number below.
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  shared_preferences: ^2.3.2
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.1
+
+# Launcher / web icons are generated from the brand logo by:
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "images/logo.png"
+  android: true
+  ios: true
+  web:
+    generate: true
+    background_color: "#4A72B0"
+    theme_color: "#4A72B0"
+  remove_alpha_ios: true
+  background_color_ios: "#4A72B0"
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/brand/
+    - assets/wellness_icons/

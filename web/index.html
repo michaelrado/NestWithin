@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="The Nest — come home to yourself. A personal sanctuary for nervous system care and emotional well-being.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="The Nest">
+  <meta name="theme-color" content="#4A72B0">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>The Nest — Come Home to Yourself</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #4A72B0; }
+    /* A calm loading state while the Flutter engine boots. */
+    #nest-splash {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: linear-gradient(180deg, #34527F 0%, #4A72B0 60%, #6488BD 100%);
+      transition: opacity .6s ease; z-index: 10;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #nest-splash img { width: 150px; height: 150px; opacity: .96;
+      animation: nest-breathe 6s ease-in-out infinite; }
+    #nest-splash p { color: rgba(255,255,255,.9); margin-top: 18px;
+      font-size: 17px; letter-spacing: .3px; }
+    @keyframes nest-breathe {
+      0%,100% { transform: scale(.96); } 50% { transform: scale(1.04); }
+    }
+  </style>
+</head>
+<body>
+  <div id="nest-splash">
+    <img src="icons/Icon-192.png" alt="The Nest">
+    <p>Come home to yourself…</p>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var s = document.getElementById('nest-splash');
+      if (s) { s.style.opacity = '0'; setTimeout(function(){ s.remove(); }, 650); }
+    });
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
