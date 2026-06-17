@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../data/nest_scope.dart';
 import '../models/content.dart';
 import '../theme/app_theme.dart';
 import '../version.dart';
+import 'profile_screen.dart';
 
 /// Integration with the physical Nest community — classes, workshops,
 /// livestreams, events. The app deepens engagement; it doesn't replace it.
@@ -79,6 +81,9 @@ class _MembershipBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
+    final store = NestScope.of(context);
+    final member = store.isSignedIn;
+    final name = store.account?.name.trim().split(' ').first;
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -89,7 +94,7 @@ class _MembershipBanner extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Nest Member',
+            member ? 'Nest Member' : 'Join the Nest',
             style: text.labelMedium?.copyWith(
               color: Colors.white.withValues(alpha: 0.8),
               letterSpacing: 1.2,
@@ -98,7 +103,11 @@ class _MembershipBanner extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Your membership unlocks every practice,\nlivestream, and studio benefit.',
+            member
+                ? 'Welcome back${name != null ? ', $name' : ''}. See your badges, '
+                      'progress, and unlocked events.'
+                : 'Save your progress, earn badges, and unlock every practice, '
+                      'livestream, and event.',
             style: text.titleMedium?.copyWith(color: Colors.white, height: 1.4),
           ),
           const SizedBox(height: 16),
@@ -107,9 +116,10 @@ class _MembershipBanner extends StatelessWidget {
               backgroundColor: Colors.white,
               foregroundColor: NestColors.blueDeep,
             ),
-            onPressed: () =>
-                _toast(context, 'Membership management coming soon.'),
-            child: const Text('Manage membership'),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
+            child: Text(member ? 'Manage membership' : 'Become a member'),
           ),
         ],
       ),
