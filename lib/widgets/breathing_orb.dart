@@ -1,15 +1,15 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/content.dart';
+import 'soul_orb.dart';
 
-/// A softly glowing orb that expands and contracts to guide the breath.
-/// Drives its own animation from a [BreathPattern] and surfaces the current
-/// phase label ("Breathe in", "Hold", "Breathe out").
+/// Guides the breath with the 3D [SoulOrb] — it expands and contracts to the
+/// pattern, and surfaces the current phase label ("Breathe in", "Hold"…).
 class BreathingOrb extends StatefulWidget {
   final BreathPattern pattern;
   final double size;
   final Color color;
+  final Color? coreColor;
   final bool running;
 
   const BreathingOrb({
@@ -17,6 +17,7 @@ class BreathingOrb extends StatefulWidget {
     required this.pattern,
     this.size = 260,
     this.color = Colors.white,
+    this.coreColor,
     this.running = true,
   });
 
@@ -33,7 +34,7 @@ class _BreathingOrbState extends State<BreathingOrb>
     super.initState();
     _c = AnimationController(
       vsync: this,
-      duration: Duration(seconds: math.max(1, widget.pattern.cycleSeconds)),
+      duration: Duration(seconds: widget.pattern.cycleSeconds.clamp(1, 60)),
     );
     if (widget.running) _c.repeat();
   }
@@ -42,7 +43,7 @@ class _BreathingOrbState extends State<BreathingOrb>
   void didUpdateWidget(covariant BreathingOrb old) {
     super.didUpdateWidget(old);
     if (widget.pattern.cycleSeconds != old.pattern.cycleSeconds) {
-      _c.duration = Duration(seconds: math.max(1, widget.pattern.cycleSeconds));
+      _c.duration = Duration(seconds: widget.pattern.cycleSeconds.clamp(1, 60));
       if (widget.running) _c.repeat();
     }
     if (widget.running && !_c.isAnimating) {
@@ -58,20 +59,16 @@ class _BreathingOrbState extends State<BreathingOrb>
     super.dispose();
   }
 
-  /// Returns (scale 0..1, phase label) for the current point in the cycle.
+  /// Returns (expansion 0..1, phase label) for the current point in the cycle.
   (double, String) _phaseAt(double t) {
     final p = widget.pattern;
-    final cycle = p.cycleSeconds.toDouble();
-    var s = t * cycle; // seconds into the cycle
-
+    var s = t * p.cycleSeconds;
     if (s < p.inhale) {
       final f = p.inhale == 0 ? 1.0 : s / p.inhale;
       return (Curves.easeInOut.transform(f), 'Breathe in');
     }
     s -= p.inhale;
-    if (s < p.holdIn) {
-      return (1.0, 'Hold');
-    }
+    if (s < p.holdIn) return (1.0, 'Hold');
     s -= p.holdIn;
     if (s < p.exhale) {
       final f = p.exhale == 0 ? 1.0 : s / p.exhale;
@@ -82,54 +79,30 @@ class _BreathingOrbState extends State<BreathingOrb>
 
   @override
   Widget build(BuildContext context) {
+    final core =
+        widget.coreColor ?? Color.lerp(widget.color, Colors.black, 0.0);
     return AnimatedBuilder(
       animation: _c,
       builder: (context, _) {
-        final (raw, label) = _phaseAt(_c.value);
-        const minScale = 0.55;
-        final scale = minScale + raw * (1 - minScale);
-        final orb = widget.size * scale;
+        final (expansion, label) = _phaseAt(_c.value);
         return SizedBox(
           width: widget.size,
           height: widget.size,
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // outer halo
-              Container(
-                width: widget.size,
-                height: widget.size,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: widget.color.withValues(alpha: 0.06),
-                ),
-              ),
-              // breathing glow
-              Container(
-                width: orb,
-                height: orb,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      widget.color.withValues(alpha: 0.95),
-                      widget.color.withValues(alpha: 0.25),
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.color.withValues(alpha: 0.35),
-                      blurRadius: 40 * scale,
-                      spreadRadius: 8 * scale,
-                    ),
-                  ],
-                ),
+              SoulOrb(
+                breath: expansion,
+                size: widget.size,
+                colorA: core ?? widget.color,
+                colorB: Color.lerp(widget.color, Colors.white, 0.55)!,
+                running: widget.running,
               ),
               Text(
                 label,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: const Color(0xFF2B3A52),
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: 0.3,
                 ),
               ),

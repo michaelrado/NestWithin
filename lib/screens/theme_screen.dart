@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../data/nest_scope.dart';
 import '../models/content.dart';
 import '../theme/app_theme.dart';
 import '../widgets/wellness_icon.dart';
 import 'practice_screen.dart';
+import 'signup_screen.dart';
 
 /// The monthly theme — living the teachings, not just consuming content.
 class ThemeScreen extends StatelessWidget {
@@ -84,8 +86,11 @@ class ThemeScreen extends StatelessWidget {
                   style: text.titleMedium?.copyWith(color: NestColors.blueDeep),
                 ),
                 const SizedBox(height: 12),
-                for (final p in practices) ...[
-                  _ThemePractice(practice: p),
+                for (final (idx, p) in practices.indexed) ...[
+                  _ThemePractice(
+                    practice: p,
+                    locked: !NestScope.of(context).isUnlocked(idx),
+                  ),
                   const SizedBox(height: 10),
                 ],
               ],
@@ -182,7 +187,8 @@ class _PromptCard extends StatelessWidget {
 
 class _ThemePractice extends StatelessWidget {
   final Practice practice;
-  const _ThemePractice({required this.practice});
+  final bool locked;
+  const _ThemePractice({required this.practice, this.locked = false});
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
@@ -192,7 +198,13 @@ class _ThemePractice extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => PracticeScreen(practice: practice)),
+          MaterialPageRoute(
+            builder: (_) => locked
+                ? const SignupScreen(
+                    reason: 'Create a free account to unlock this practice',
+                  )
+                : PracticeScreen(practice: practice),
+          ),
         ),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -229,10 +241,12 @@ class _ThemePractice extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(
-                Icons.play_circle_fill_rounded,
-                color: NestColors.blue,
-                size: 30,
+              Icon(
+                locked
+                    ? Icons.lock_outline_rounded
+                    : Icons.play_circle_fill_rounded,
+                color: locked ? NestColors.inkSoft : NestColors.blue,
+                size: locked ? 24 : 30,
               ),
             ],
           ),

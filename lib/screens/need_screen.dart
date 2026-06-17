@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../data/nest_scope.dart';
+import '../data/nest_store.dart';
 import '../models/content.dart';
 import '../theme/app_theme.dart';
 import '../widgets/wellness_icon.dart';
 import 'practice_screen.dart';
+import 'signup_screen.dart';
 
 /// "We'll meet you there" — the practices recommended for a chosen need.
+/// The first [kFreePerCategory] are free; the rest unlock with an account.
 class NeedScreen extends StatelessWidget {
   final Need need;
   const NeedScreen({super.key, required this.need});
@@ -13,7 +17,9 @@ class NeedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
+    final store = NestScope.of(context);
     final practices = need.practiceIds.map(NestContent.practiceById).toList();
+    final anyLocked = !store.isSignedIn && practices.length > kFreePerCategory;
 
     return Scaffold(
       backgroundColor: NestColors.cream,
@@ -75,10 +81,21 @@ class NeedScreen extends StatelessWidget {
                     ),
                   );
                 }
-                return _PracticeRow(practice: practices[i - 1]);
+                final idx = i - 1;
+                return _PracticeRow(
+                  practice: practices[idx],
+                  locked: !store.isUnlocked(idx),
+                );
               },
             ),
           ),
+          if (anyLocked)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                child: _UnlockBanner(needLabel: need.label),
+              ),
+            ),
         ],
       ),
     );
@@ -87,7 +104,24 @@ class NeedScreen extends StatelessWidget {
 
 class _PracticeRow extends StatelessWidget {
   final Practice practice;
-  const _PracticeRow({required this.practice});
+  final bool locked;
+  const _PracticeRow({required this.practice, required this.locked});
+
+  void _open(BuildContext context) {
+    if (locked) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const SignupScreen(
+            reason: 'Create a free account to unlock this practice',
+          ),
+        ),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => PracticeScreen(practice: practice)),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -97,22 +131,23 @@ class _PracticeRow extends StatelessWidget {
       borderRadius: BorderRadius.circular(22),
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => PracticeScreen(practice: practice)),
-        ),
+        onTap: () => _open(context),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: NestColors.blueMist,
-                  borderRadius: BorderRadius.circular(18),
+              Opacity(
+                opacity: locked ? 0.5 : 1,
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: NestColors.blueMist,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  padding: const EdgeInsets.all(8),
+                  child: WellnessIcon(practice.iconAsset, size: 44),
                 ),
-                padding: const EdgeInsets.all(8),
-                child: WellnessIcon(practice.iconAsset, size: 44),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -122,7 +157,7 @@ class _PracticeRow extends StatelessWidget {
                     Text(
                       practice.title,
                       style: text.titleSmall?.copyWith(
-                        color: NestColors.ink,
+                        color: locked ? NestColors.inkSoft : NestColors.ink,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -153,10 +188,70 @@ class _PracticeRow extends StatelessWidget {
                   ],
                 ),
               ),
+              Icon(
+                locked
+                    ? Icons.lock_outline_rounded
+                    : Icons.play_circle_fill_rounded,
+                color: locked ? NestColors.inkSoft : NestColors.blue,
+                size: locked ? 26 : 34,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UnlockBanner extends StatelessWidget {
+  final String needLabel;
+  const _UnlockBanner({required this.needLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => SignupScreen(
+              reason: 'Unlock all of $needLabel and every other practice',
+            ),
+          ),
+        ),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: NestColors.creamDeep,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: NestColors.sand),
+          ),
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              const Icon(Icons.lock_open_rounded, color: NestColors.clay),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Enjoying the free practices?',
+                      style: text.titleSmall?.copyWith(color: NestColors.ink),
+                    ),
+                    Text(
+                      'Create a free account to unlock the full library.',
+                      style: text.bodySmall?.copyWith(
+                        color: NestColors.inkSoft,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const Icon(
-                Icons.play_circle_fill_rounded,
-                color: NestColors.blue,
-                size: 34,
+                Icons.chevron_right_rounded,
+                color: NestColors.inkSoft,
               ),
             ],
           ),

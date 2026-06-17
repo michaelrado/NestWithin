@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../data/nest_scope.dart';
 import '../models/content.dart';
 import '../theme/app_theme.dart';
+import '../data/nest_store.dart';
 import '../widgets/wellness_icon.dart';
 import 'need_screen.dart';
+import 'profile_screen.dart';
 
 /// "How are you arriving today?" — the daily check-in, plus the Nest
 /// Prescription: gentle, personalized insight drawn from your patterns.
@@ -27,11 +29,17 @@ class TodayScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
               sliver: SliverList.list(
                 children: [
-                  Text(
-                    'Today',
-                    style: text.headlineMedium?.copyWith(
-                      color: NestColors.blueDeep,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        'Today',
+                        style: text.headlineMedium?.copyWith(
+                          color: NestColors.blueDeep,
+                        ),
+                      ),
+                      const Spacer(),
+                      _ProfileButton(store: store),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -67,6 +75,38 @@ class TodayScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ProfileButton extends StatelessWidget {
+  final NestStore store;
+  const _ProfileButton({required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    final signedIn = store.isSignedIn;
+    final initial = signedIn && store.account!.name.trim().isNotEmpty
+        ? store.account!.name.trim()[0].toUpperCase()
+        : null;
+    return InkWell(
+      borderRadius: BorderRadius.circular(24),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
+      child: CircleAvatar(
+        radius: 22,
+        backgroundColor: signedIn ? NestColors.blue : Colors.white,
+        child: initial != null
+            ? Text(
+                initial,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              )
+            : const Icon(Icons.person_outline_rounded, color: NestColors.blue),
       ),
     );
   }

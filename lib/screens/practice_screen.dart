@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../audio/ambience_player.dart';
 import '../data/nest_scope.dart';
+import '../models/badges.dart' as nest;
 import '../models/content.dart';
 import '../theme/app_theme.dart';
 import '../widgets/breathing_orb.dart';
+import '../widgets/soul_orb.dart';
 import '../widgets/wellness_icon.dart';
 
 /// The guided experience player. Paces the practice's cues across its duration,
-/// with a breathing orb for breath practices and a soft pulse for the rest.
+/// with the 3D soul orb breathing along and a looping ambient sound bed.
 class PracticeScreen extends StatefulWidget {
   final Practice practice;
   const PracticeScreen({super.key, required this.practice});
@@ -20,14 +23,17 @@ class _PracticeScreenState extends State<PracticeScreen>
     with TickerProviderStateMixin {
   late final AnimationController _progress;
   late final AnimationController _pulse;
+  late final AmbiencePlayer _ambience;
   bool _running = false;
   bool _done = false;
+  List<String> _newBadges = const [];
 
   int get _totalSeconds => widget.practice.minutes * 60;
 
   @override
   void initState() {
     super.initState();
+    _ambience = AmbiencePlayer(enabled: NestScope.read(context).soundEnabled);
     _progress =
         AnimationController(
           vsync: this,
@@ -40,12 +46,15 @@ class _PracticeScreenState extends State<PracticeScreen>
       vsync: this,
       duration: const Duration(seconds: 5),
     )..repeat(reverse: true);
-    // start automatically after the first frame for a gentle entry
-    WidgetsBinding.instance.addPostFrameCallback((_) => _toggle());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _toggle();
+      _ambience.play(widget.practice.ambience);
+    });
   }
 
   @override
   void dispose() {
+    _ambience.dispose();
     _progress.dispose();
     _pulse.dispose();
     super.dispose();
@@ -62,10 +71,23 @@ class _PracticeScreenState extends State<PracticeScreen>
     });
   }
 
-  void _complete() {
+  Future<void> _toggleSound() async {
+    final store = NestScope.read(context);
+    final next = !store.soundEnabled;
+    await store.setSoundEnabled(next);
+    await _ambience.setEnabled(next);
+    setState(() {});
+  }
+
+  Future<void> _complete() async {
     if (_done) return;
-    setState(() => _done = true);
-    NestScope.read(context).markCompleted(widget.practice.id);
+    final badges = await NestScope.read(
+      context,
+    ).markCompleted(widget.practice.id);
+    setState(() {
+      _done = true;
+      _newBadges = badges;
+    });
   }
 
   String get _remaining {
@@ -92,13 +114,14 @@ class _PracticeScreenState extends State<PracticeScreen>
   Widget build(BuildContext context) {
     final p = widget.practice;
     final text = Theme.of(context).textTheme;
+    final soundOn = NestScope.of(context).soundEnabled;
 
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(gradient: NestTheme.calmGradient),
         child: SafeArea(
           child: _done
-              ? _Completion(practice: p)
+              ? _Completion(practice: p, newBadges: _newBadges)
               : Column(
                   children: [
                     Padding(
@@ -115,15 +138,27 @@ class _PracticeScreenState extends State<PracticeScreen>
                             _remaining,
                             style: text.titleMedium?.copyWith(
                               color: NestColors.inkSoft,
-                              fontFeatures: const [],
                             ),
                           ),
                           const Spacer(),
-                          const SizedBox(width: 48),
+                          IconButton(
+                            tooltip: p.ambience == Ambience.none
+                                ? 'No sound for this practice'
+                                : (soundOn ? 'Mute' : 'Unmute'),
+                            color: NestColors.inkSoft,
+                            onPressed: p.ambience == Ambience.none
+                                ? null
+                                : _toggleSound,
+                            icon: Icon(
+                              soundOn && p.ambience != Ambience.none
+                                  ? Icons.volume_up_rounded
+                                  : Icons.volume_off_rounded,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     Text(
                       p.title,
                       style: text.headlineSmall?.copyWith(
@@ -131,7 +166,9 @@ class _PracticeScreenState extends State<PracticeScreen>
                       ),
                     ),
                     Text(
-                      '${p.kind.label} · ${p.minutes} min',
+                      p.ambience == Ambience.none
+                          ? '${p.kind.label} · ${p.minutes} min'
+                          : '${p.kind.label} · ${p.minutes} min · ${p.ambience.label}',
                       style: text.bodySmall?.copyWith(
                         color: NestColors.inkSoft,
                       ),
@@ -140,12 +177,17 @@ class _PracticeScreenState extends State<PracticeScreen>
                     if (p.breath != null)
                       BreathingOrb(
                         pattern: p.breath!,
-                        size: 280,
+                        size: 290,
                         color: NestColors.blueSoft,
                         running: _running,
                       )
                     else
-                      _PulseEmblem(animation: _pulse, asset: p.iconAsset),
+                      _SoulEmblem(
+                        pulse: _pulse,
+                        asset: p.iconAsset,
+                        kind: p.kind,
+                        running: _running,
+                      ),
                     const Spacer(),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 36),
@@ -168,7 +210,6 @@ class _PracticeScreenState extends State<PracticeScreen>
                       running: _running,
                       progress: _progress.value,
                       onToggle: _toggle,
-                      onFinish: _complete,
                     ),
                     const SizedBox(height: 28),
                   ],
@@ -179,39 +220,53 @@ class _PracticeScreenState extends State<PracticeScreen>
   }
 }
 
-class _PulseEmblem extends StatelessWidget {
-  final Animation<double> animation;
+({Color a, Color b}) _soulColors(PracticeKind kind) {
+  return switch (kind) {
+    PracticeKind.meditation => (a: NestColors.blue, b: NestColors.blueMist),
+    PracticeKind.sound => (a: NestColors.blueSoft, b: Color(0xFFEAF2FF)),
+    PracticeKind.rest => (a: NestColors.blueDeep, b: NestColors.blueSoft),
+    PracticeKind.reflection => (a: NestColors.sage, b: Color(0xFFE6EFE4)),
+    PracticeKind.movement => (a: NestColors.clay, b: Color(0xFFF3DCCB)),
+    PracticeKind.breath => (a: NestColors.blueSoft, b: Color(0xFFEAF2FF)),
+  };
+}
+
+class _SoulEmblem extends StatelessWidget {
+  final AnimationController pulse;
   final String asset;
-  const _PulseEmblem({required this.animation, required this.asset});
+  final PracticeKind kind;
+  final bool running;
+  const _SoulEmblem({
+    required this.pulse,
+    required this.asset,
+    required this.kind,
+    required this.running,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final c = _soulColors(kind);
     return AnimatedBuilder(
-      animation: animation,
+      animation: pulse,
       builder: (context, _) {
-        final scale = 0.92 + animation.value * 0.12;
-        return Transform.scale(
-          scale: scale,
-          child: Container(
-            width: 240,
-            height: 240,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  Colors.white,
-                  NestColors.blueMist.withValues(alpha: 0.6),
-                ],
+        return SizedBox(
+          width: 290,
+          height: 290,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              SoulOrb(
+                breath: pulse.value,
+                size: 290,
+                colorA: c.a,
+                colorB: c.b,
+                running: running,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: NestColors.blueSoft.withValues(alpha: 0.4),
-                  blurRadius: 40,
-                  spreadRadius: 6,
-                ),
-              ],
-            ),
-            child: Center(child: WellnessIcon(asset, size: 110)),
+              Opacity(
+                opacity: 0.9,
+                child: WellnessIcon(asset, size: 96, tint: Colors.white),
+              ),
+            ],
           ),
         );
       },
@@ -223,63 +278,57 @@ class _Controls extends StatelessWidget {
   final bool running;
   final double progress;
   final VoidCallback onToggle;
-  final VoidCallback onFinish;
 
   const _Controls({
     required this.running,
     required this.progress,
     required this.onToggle,
-    required this.onFinish,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 84,
-          height: 84,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: 84,
-                height: 84,
-                child: CircularProgressIndicator(
-                  value: progress,
-                  strokeWidth: 4,
-                  backgroundColor: NestColors.blueMist,
-                  valueColor: const AlwaysStoppedAnimation(NestColors.blue),
-                ),
-              ),
-              GestureDetector(
-                onTap: onToggle,
-                child: Container(
-                  width: 68,
-                  height: 68,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: NestColors.blue,
-                  ),
-                  child: Icon(
-                    running ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    color: Colors.white,
-                    size: 34,
-                  ),
-                ),
-              ),
-            ],
+    return SizedBox(
+      width: 84,
+      height: 84,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 84,
+            height: 84,
+            child: CircularProgressIndicator(
+              value: progress,
+              strokeWidth: 4,
+              backgroundColor: NestColors.blueMist,
+              valueColor: const AlwaysStoppedAnimation(NestColors.blue),
+            ),
           ),
-        ),
-      ],
+          GestureDetector(
+            onTap: onToggle,
+            child: Container(
+              width: 68,
+              height: 68,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: NestColors.blue,
+              ),
+              child: Icon(
+                running ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 34,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _Completion extends StatelessWidget {
   final Practice practice;
-  const _Completion({required this.practice});
+  final List<String> newBadges;
+  const _Completion({required this.practice, required this.newBadges});
 
   @override
   Widget build(BuildContext context) {
@@ -301,6 +350,10 @@ class _Completion extends StatelessWidget {
             textAlign: TextAlign.center,
             style: text.bodyLarge?.copyWith(color: NestColors.ink, height: 1.5),
           ),
+          if (newBadges.isNotEmpty) ...[
+            const SizedBox(height: 28),
+            _BadgeUnlock(badgeIds: newBadges),
+          ],
           const SizedBox(height: 36),
           SizedBox(
             width: double.infinity,
@@ -308,6 +361,76 @@ class _Completion extends StatelessWidget {
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Return to the Nest'),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BadgeUnlock extends StatelessWidget {
+  final List<String> badgeIds;
+  const _BadgeUnlock({required this.badgeIds});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: NestColors.clay.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            badgeIds.length == 1 ? 'Badge earned!' : 'Badges earned!',
+            style: text.titleSmall?.copyWith(
+              color: NestColors.clay,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 18,
+            runSpacing: 12,
+            children: [
+              for (final id in badgeIds)
+                _MiniBadge(badge: nest.Badges.byId(id)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniBadge extends StatelessWidget {
+  final nest.Badge badge;
+  const _MiniBadge({required this.badge});
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return SizedBox(
+      width: 84,
+      child: Column(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: badge.color.withValues(alpha: 0.16),
+            ),
+            child: Icon(badge.icon, color: badge.color, size: 30),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            badge.title,
+            textAlign: TextAlign.center,
+            style: text.labelSmall?.copyWith(color: NestColors.ink),
           ),
         ],
       ),

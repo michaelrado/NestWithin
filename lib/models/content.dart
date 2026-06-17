@@ -20,6 +20,29 @@ class BreathPattern {
   int get cycleSeconds => inhale + holdIn + exhale + holdOut;
 }
 
+/// Ambient sound bed for a practice. Assets live under assets/audio/ and loop
+/// seamlessly. [asset] is the audioplayers AssetSource path (relative to
+/// assets/).
+enum Ambience { none, waves, rain, bowls, pad }
+
+extension AmbienceX on Ambience {
+  String? get asset => switch (this) {
+    Ambience.none => null,
+    Ambience.waves => 'audio/ocean_waves.wav',
+    Ambience.rain => 'audio/rain.wav',
+    Ambience.bowls => 'audio/singing_bowl.wav',
+    Ambience.pad => 'audio/warm_pad.wav',
+  };
+
+  String get label => switch (this) {
+    Ambience.none => 'Silence',
+    Ambience.waves => 'Ocean waves',
+    Ambience.rain => 'Soft rain',
+    Ambience.bowls => 'Singing bowls',
+    Ambience.pad => 'Warm tones',
+  };
+}
+
 enum PracticeKind { breath, meditation, sound, movement, reflection, rest }
 
 extension PracticeKindX on PracticeKind {
@@ -53,6 +76,7 @@ class Practice {
   final String invitation; // the warm opening line shown when it begins
   final List<String> steps; // guided cues, paced across the duration
   final BreathPattern? breath;
+  final Ambience ambience; // looping sound bed
 
   const Practice({
     required this.id,
@@ -64,6 +88,7 @@ class Practice {
     required this.invitation,
     required this.steps,
     this.breath,
+    this.ambience = Ambience.none,
   });
 }
 
@@ -146,6 +171,7 @@ class NestContent {
   static const List<Practice> practices = [
     Practice(
       id: 'grounding',
+      ambience: Ambience.waves,
       title: '5-4-3-2-1 Grounding',
       subtitle: 'Come back to the present moment',
       minutes: 3,
@@ -163,6 +189,7 @@ class NestContent {
     ),
     Practice(
       id: 'box-breath',
+      ambience: Ambience.waves,
       title: 'Box Breath',
       subtitle: 'Steady the nervous system',
       minutes: 3,
@@ -180,6 +207,7 @@ class NestContent {
     ),
     Practice(
       id: 'sigh',
+      ambience: Ambience.waves,
       title: 'Physiological Sigh',
       subtitle: 'Fastest way to calm',
       minutes: 2,
@@ -201,6 +229,7 @@ class NestContent {
     ),
     Practice(
       id: 'four78',
+      ambience: Ambience.rain,
       title: '4 · 7 · 8 for Sleep',
       subtitle: 'Drift toward rest',
       minutes: 5,
@@ -222,6 +251,7 @@ class NestContent {
     ),
     Practice(
       id: 'coherent',
+      ambience: Ambience.waves,
       title: 'Coherent Breathing',
       subtitle: 'Find your center',
       minutes: 5,
@@ -243,6 +273,7 @@ class NestContent {
     ),
     Practice(
       id: 'bodyscan',
+      ambience: Ambience.pad,
       title: 'Gentle Body Scan',
       subtitle: 'Release held tension',
       minutes: 10,
@@ -259,6 +290,7 @@ class NestContent {
     ),
     Practice(
       id: 'soundbath',
+      ambience: Ambience.bowls,
       title: 'Sound Healing Bath',
       subtitle: 'Let resonance hold you',
       minutes: 10,
@@ -274,6 +306,7 @@ class NestContent {
     ),
     Practice(
       id: 'lovingkindness',
+      ambience: Ambience.pad,
       title: 'Loving-Kindness',
       subtitle: 'Warm the heart',
       minutes: 7,
@@ -304,6 +337,7 @@ class NestContent {
     ),
     Practice(
       id: 'gratitude',
+      ambience: Ambience.pad,
       title: 'Three Good Things',
       subtitle: 'Tilt toward the good',
       minutes: 3,
@@ -319,6 +353,7 @@ class NestContent {
     ),
     Practice(
       id: 'restore',
+      ambience: Ambience.rain,
       title: 'Legs Up the Wall',
       subtitle: 'Restorative stillness',
       minutes: 8,
@@ -334,6 +369,7 @@ class NestContent {
     ),
     Practice(
       id: 'intention',
+      ambience: Ambience.pad,
       title: 'Set an Intention',
       subtitle: 'Begin on purpose',
       minutes: 2,

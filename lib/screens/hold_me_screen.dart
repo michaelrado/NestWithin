@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../audio/ambience_player.dart';
+import '../data/nest_scope.dart';
+import '../models/badges.dart' as nest;
 import '../models/content.dart';
 import '../theme/app_theme.dart';
 import '../widgets/breathing_orb.dart';
 
 /// "Hold Me For Five Minutes" — the emotional heart of the app. A calming
 /// sanctuary for moments of stress, anxiety, grief, or overwhelm. It simply
-/// holds you: soft breath, gentle light, supportive words.
+/// holds you: a glowing soul breathing slowly, warm tones, supportive words.
+/// Always free — this is the safety feature.
 class HoldMeScreen extends StatefulWidget {
   const HoldMeScreen({super.key});
 
@@ -16,7 +20,6 @@ class HoldMeScreen extends StatefulWidget {
 
 class _HoldMeScreenState extends State<HoldMeScreen>
     with SingleTickerProviderStateMixin {
-  // A slow, soothing breath — longer exhale than inhale.
   static const _pattern = BreathPattern(
     'Soothe',
     inhale: 4,
@@ -36,33 +39,53 @@ class _HoldMeScreenState extends State<HoldMeScreen>
     'You belong here.',
   ];
 
-  late final AnimationController _total; // 5 minutes
+  late final AnimationController _total;
+  late final AmbiencePlayer _ambience;
   int _msgIndex = 0;
   bool _finished = false;
+  List<String> _newBadges = const [];
 
   @override
   void initState() {
     super.initState();
+    _ambience = AmbiencePlayer(enabled: NestScope.read(context).soundEnabled);
     _total =
         AnimationController(vsync: this, duration: const Duration(minutes: 5))
           ..addListener(_tick)
           ..addStatusListener((s) {
-            if (s == AnimationStatus.completed) {
-              setState(() => _finished = true);
-            }
+            if (s == AnimationStatus.completed) _finish();
           })
           ..forward();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _ambience.play(Ambience.pad),
+    );
   }
 
   void _tick() {
-    // advance the message roughly every ~22 seconds
     final i =
         (_total.value * _messages.length * 1.4).floor() % _messages.length;
     if (i != _msgIndex) setState(() => _msgIndex = i);
   }
 
+  Future<void> _finish() async {
+    final badges = await NestScope.read(context).markHoldMeComplete();
+    setState(() {
+      _finished = true;
+      _newBadges = badges;
+    });
+  }
+
+  Future<void> _toggleSound() async {
+    final store = NestScope.read(context);
+    final next = !store.soundEnabled;
+    await store.setSoundEnabled(next);
+    await _ambience.setEnabled(next);
+    setState(() {});
+  }
+
   @override
   void dispose() {
+    _ambience.dispose();
     _total.dispose();
     super.dispose();
   }
@@ -70,6 +93,7 @@ class _HoldMeScreenState extends State<HoldMeScreen>
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
+    final soundOn = NestScope.of(context).soundEnabled;
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(gradient: NestTheme.sanctuaryGradient),
@@ -77,14 +101,29 @@ class _HoldMeScreenState extends State<HoldMeScreen>
           child: Stack(
             children: [
               Align(
-                alignment: Alignment.topRight,
+                alignment: Alignment.topLeft,
                 child: IconButton(
                   icon: const Icon(Icons.close_rounded, color: Colors.white),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ),
+              Align(
+                alignment: Alignment.topRight,
+                child: IconButton(
+                  icon: Icon(
+                    soundOn
+                        ? Icons.volume_up_rounded
+                        : Icons.volume_off_rounded,
+                    color: Colors.white,
+                  ),
+                  onPressed: _toggleSound,
+                ),
+              ),
               if (_finished)
-                _Farewell(onClose: () => Navigator.of(context).pop())
+                _Farewell(
+                  newBadges: _newBadges,
+                  onClose: () => Navigator.of(context).pop(),
+                )
               else
                 Column(
                   children: [
@@ -101,6 +140,7 @@ class _HoldMeScreenState extends State<HoldMeScreen>
                       pattern: _pattern,
                       size: 300,
                       color: Colors.white,
+                      coreColor: Color(0xFF8FB0E0),
                     ),
                     const Spacer(flex: 1),
                     Padding(
@@ -132,7 +172,8 @@ class _HoldMeScreenState extends State<HoldMeScreen>
 
 class _Farewell extends StatelessWidget {
   final VoidCallback onClose;
-  const _Farewell({required this.onClose});
+  final List<String> newBadges;
+  const _Farewell({required this.onClose, required this.newBadges});
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +200,17 @@ class _Farewell extends StatelessWidget {
                 height: 1.5,
               ),
             ),
+            if (newBadges.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 18,
+                children: [
+                  for (final id in newBadges)
+                    _Badge(badge: nest.Badges.byId(id)),
+                ],
+              ),
+            ],
             const SizedBox(height: 36),
             FilledButton(
               style: FilledButton.styleFrom(
@@ -170,6 +222,37 @@ class _Farewell extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  final nest.Badge badge;
+  const _Badge({required this.badge});
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return SizedBox(
+      width: 90,
+      child: Column(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.18),
+            ),
+            child: Icon(badge.icon, color: Colors.white, size: 30),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            badge.title,
+            textAlign: TextAlign.center,
+            style: text.labelSmall?.copyWith(color: Colors.white),
+          ),
+        ],
       ),
     );
   }

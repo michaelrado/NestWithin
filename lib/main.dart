@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'data/nest_scope.dart';
 import 'data/nest_store.dart';
 import 'theme/app_theme.dart';
+import 'widgets/soul_orb.dart';
 import 'screens/splash_screen.dart';
 import 'screens/root_nav.dart';
 
@@ -10,6 +11,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final store = NestStore();
   await store.init();
+  await SoulOrb.warmUp(); // compile the soul shader before first paint
   runApp(NestApp(store: store));
 }
 
