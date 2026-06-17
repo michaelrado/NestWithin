@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Increment the build counter on every commit and stage the regenerated version
+# artifacts, so each commit carries a fresh build. Mirrors FairGames.
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+"$ROOT/tool/bump-build.sh" >/dev/null
+git add "$ROOT/version.json" "$ROOT/lib/version.dart" "$ROOT/pubspec.yaml"

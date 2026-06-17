@@ -1,0 +1,10 @@
+{
+  "name": "nest-qc",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Playwright QC walkthrough for The Nest (records screenshots + video per screen).",
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}

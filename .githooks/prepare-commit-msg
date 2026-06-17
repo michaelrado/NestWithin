@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Append a "Nest Within vX.Y.Z (build N)" trailer to the commit message (above
+# any Co-Authored-By trailers) if not already present. Mirrors FairGames.
+set -euo pipefail
+MSG_FILE="$1"
+ROOT="$(git rev-parse --show-toplevel)"
+read -r VERSION BUILD < <(python3 -c "import json;d=json.load(open('$ROOT/version.json'));print(d['version'],d['build'])")
+TRAILER="Nest Within v$VERSION (build $BUILD)"
+
+grep -qF "$TRAILER" "$MSG_FILE" && exit 0
+
+python3 - "$MSG_FILE" "$TRAILER" <<'PY'
+import sys
+path, trailer = sys.argv[1], sys.argv[2]
+lines = open(path).read().split("\n")
+# find first Co-Authored-By to insert above it; else append at end
+idx = next((i for i, l in enumerate(lines) if l.startswith("Co-Authored-By:")), None)
+block = ["", trailer]
+if idx is None:
+    # drop trailing blank lines, then append
+    while lines and lines[-1].strip() == "":
+        lines.pop()
+    lines += block
+else:
+    # ensure a blank line separates body from the trailer
+    lines[idx:idx] = [trailer, ""] if (idx > 0 and lines[idx-1].strip() != "") else [trailer]
+open(path, "w").write("\n".join(lines) + "\n")
+PY
