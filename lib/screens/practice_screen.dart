@@ -79,6 +79,15 @@ class _PracticeScreenState extends State<PracticeScreen>
     setState(() {});
   }
 
+  /// Browsers block audio that doesn't begin from a user gesture, so the first
+  /// tap anywhere on the player (re)starts the sound bed if it isn't running.
+  void _onUserGesture() {
+    if (widget.practice.ambience == Ambience.none) return;
+    if (NestScope.read(context).soundEnabled && !_ambience.isPlaying) {
+      _ambience.play(widget.practice.ambience);
+    }
+  }
+
   Future<void> _complete() async {
     if (_done) return;
     final badges = await NestScope.read(
@@ -117,103 +126,107 @@ class _PracticeScreenState extends State<PracticeScreen>
     final soundOn = NestScope.of(context).soundEnabled;
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: NestTheme.calmGradient),
-        child: SafeArea(
-          child: _done
-              ? _Completion(practice: p, newBadges: _newBadges)
-              : Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.close_rounded),
-                            color: NestColors.inkSoft,
-                            onPressed: () => Navigator.of(context).pop(),
-                          ),
-                          const Spacer(),
-                          Text(
-                            _remaining,
-                            style: text.titleMedium?.copyWith(
+      body: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _onUserGesture(),
+        child: Container(
+          decoration: const BoxDecoration(gradient: NestTheme.calmGradient),
+          child: SafeArea(
+            child: _done
+                ? _Completion(practice: p, newBadges: _newBadges)
+                : Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded),
                               color: NestColors.inkSoft,
+                              onPressed: () => Navigator.of(context).pop(),
                             ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            tooltip: p.ambience == Ambience.none
-                                ? 'No sound for this practice'
-                                : (soundOn ? 'Mute' : 'Unmute'),
-                            color: NestColors.inkSoft,
-                            onPressed: p.ambience == Ambience.none
-                                ? null
-                                : _toggleSound,
-                            icon: Icon(
-                              soundOn && p.ambience != Ambience.none
-                                  ? Icons.volume_up_rounded
-                                  : Icons.volume_off_rounded,
+                            const Spacer(),
+                            Text(
+                              _remaining,
+                              style: text.titleMedium?.copyWith(
+                                color: NestColors.inkSoft,
+                              ),
                             ),
-                          ),
-                        ],
+                            const Spacer(),
+                            IconButton(
+                              tooltip: p.ambience == Ambience.none
+                                  ? 'No sound for this practice'
+                                  : (soundOn ? 'Mute' : 'Unmute'),
+                              color: NestColors.inkSoft,
+                              onPressed: p.ambience == Ambience.none
+                                  ? null
+                                  : _toggleSound,
+                              icon: Icon(
+                                soundOn && p.ambience != Ambience.none
+                                    ? Icons.volume_up_rounded
+                                    : Icons.volume_off_rounded,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      p.title,
-                      style: text.headlineSmall?.copyWith(
-                        color: NestColors.blueDeep,
+                      const SizedBox(height: 4),
+                      Text(
+                        p.title,
+                        style: text.headlineSmall?.copyWith(
+                          color: NestColors.blueDeep,
+                        ),
                       ),
-                    ),
-                    Text(
-                      p.ambience == Ambience.none
-                          ? '${p.kind.label} · ${p.minutes} min'
-                          : '${p.kind.label} · ${p.minutes} min · ${p.ambience.label}',
-                      style: text.bodySmall?.copyWith(
-                        color: NestColors.inkSoft,
+                      Text(
+                        p.ambience == Ambience.none
+                            ? '${p.kind.label} · ${p.minutes} min'
+                            : '${p.kind.label} · ${p.minutes} min · ${p.ambience.label}',
+                        style: text.bodySmall?.copyWith(
+                          color: NestColors.inkSoft,
+                        ),
                       ),
-                    ),
-                    const Spacer(),
-                    if (p.breath != null)
-                      BreathingOrb(
-                        pattern: p.breath!,
-                        size: 290,
-                        color: NestColors.blueSoft,
-                        running: _running,
-                      )
-                    else
-                      _SoulEmblem(
-                        pulse: _pulse,
-                        asset: p.iconAsset,
-                        kind: p.kind,
-                        running: _running,
-                      ),
-                    const Spacer(),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 36),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 500),
-                        child: Text(
-                          _currentCue,
-                          key: ValueKey(_currentCue),
-                          textAlign: TextAlign.center,
-                          style: text.titleMedium?.copyWith(
-                            color: NestColors.ink,
-                            height: 1.5,
-                            fontWeight: FontWeight.w500,
+                      const Spacer(),
+                      if (p.breath != null)
+                        BreathingOrb(
+                          pattern: p.breath!,
+                          size: 290,
+                          color: NestColors.blueSoft,
+                          running: _running,
+                        )
+                      else
+                        _SoulEmblem(
+                          pulse: _pulse,
+                          asset: p.iconAsset,
+                          kind: p.kind,
+                          running: _running,
+                        ),
+                      const Spacer(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 36),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 500),
+                          child: Text(
+                            _currentCue,
+                            key: ValueKey(_currentCue),
+                            textAlign: TextAlign.center,
+                            style: text.titleMedium?.copyWith(
+                              color: NestColors.ink,
+                              height: 1.5,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 28),
-                    _Controls(
-                      running: _running,
-                      progress: _progress.value,
-                      onToggle: _toggle,
-                    ),
-                    const SizedBox(height: 28),
-                  ],
-                ),
+                      const SizedBox(height: 28),
+                      _Controls(
+                        running: _running,
+                        progress: _progress.value,
+                        onToggle: _toggle,
+                      ),
+                      const SizedBox(height: 28),
+                    ],
+                  ),
+          ),
         ),
       ),
     );

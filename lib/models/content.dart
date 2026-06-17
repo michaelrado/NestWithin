@@ -23,7 +23,7 @@ class BreathPattern {
 /// Ambient sound bed for a practice. Assets live under assets/audio/ and loop
 /// seamlessly. [asset] is the audioplayers AssetSource path (relative to
 /// assets/).
-enum Ambience { none, waves, rain, bowls, pad }
+enum Ambience { none, waves, rain, bowls, pad, forest, fireplace }
 
 extension AmbienceX on Ambience {
   String? get asset => switch (this) {
@@ -32,6 +32,8 @@ extension AmbienceX on Ambience {
     Ambience.rain => 'audio/rain.wav',
     Ambience.bowls => 'audio/singing_bowl.wav',
     Ambience.pad => 'audio/warm_pad.wav',
+    Ambience.forest => 'audio/forest.wav',
+    Ambience.fireplace => 'audio/fireplace.wav',
   };
 
   String get label => switch (this) {
@@ -40,6 +42,8 @@ extension AmbienceX on Ambience {
     Ambience.rain => 'Soft rain',
     Ambience.bowls => 'Singing bowls',
     Ambience.pad => 'Warm tones',
+    Ambience.forest => 'Forest',
+    Ambience.fireplace => 'Fireplace',
   };
 }
 
@@ -171,7 +175,7 @@ class NestContent {
   static const List<Practice> practices = [
     Practice(
       id: 'grounding',
-      ambience: Ambience.waves,
+      ambience: Ambience.forest,
       title: '5-4-3-2-1 Grounding',
       subtitle: 'Come back to the present moment',
       minutes: 3,
@@ -273,7 +277,7 @@ class NestContent {
     ),
     Practice(
       id: 'bodyscan',
-      ambience: Ambience.pad,
+      ambience: Ambience.fireplace,
       title: 'Gentle Body Scan',
       subtitle: 'Release held tension',
       minutes: 10,
@@ -353,7 +357,7 @@ class NestContent {
     ),
     Practice(
       id: 'restore',
-      ambience: Ambience.rain,
+      ambience: Ambience.fireplace,
       title: 'Legs Up the Wall',
       subtitle: 'Restorative stillness',
       minutes: 8,
@@ -369,7 +373,7 @@ class NestContent {
     ),
     Practice(
       id: 'intention',
-      ambience: Ambience.pad,
+      ambience: Ambience.forest,
       title: 'Set an Intention',
       subtitle: 'Begin on purpose',
       minutes: 2,

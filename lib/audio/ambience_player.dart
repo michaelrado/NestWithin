@@ -1,23 +1,33 @@
+import 'dart:async';
+
 import 'package:audioplayers/audioplayers.dart';
 
 import '../models/content.dart';
 
-/// Plays a single looping ambient bed (waves, rain, singing bowls, warm tones).
-/// One instance per playing screen; tolerant of platforms where autoplay needs
-/// a gesture (failures are swallowed so the practice never breaks).
+/// Plays a single looping ambient bed (waves, rain, singing bowls, warm tones,
+/// forest, fireplace). One instance per playing screen; tolerant of platforms
+/// where autoplay needs a gesture (failures are swallowed so the practice never
+/// breaks). [isPlaying] tracks the real player state so a screen can restart
+/// playback on the first user tap when the browser blocked autoplay.
 class AmbiencePlayer {
   final AudioPlayer _player = AudioPlayer();
+  StreamSubscription<PlayerState>? _stateSub;
   Ambience _current = Ambience.none;
   bool _enabled;
+  bool _playing = false;
   final double volume;
 
   AmbiencePlayer({bool enabled = true, this.volume = 0.55})
     : _enabled = enabled {
     _player.setReleaseMode(ReleaseMode.loop);
+    _stateSub = _player.onPlayerStateChanged.listen((s) {
+      _playing = s == PlayerState.playing;
+    });
   }
 
   Ambience get current => _current;
   bool get enabled => _enabled;
+  bool get isPlaying => _playing;
 
   Future<void> play(Ambience a) async {
     _current = a;
@@ -50,6 +60,7 @@ class AmbiencePlayer {
   }
 
   Future<void> dispose() async {
+    await _stateSub?.cancel();
     await _safeStop();
     try {
       await _player.dispose();

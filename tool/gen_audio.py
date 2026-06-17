@@ -97,10 +97,50 @@ def pad(dur=24):
     env = 0.6 + 0.4*np.sin(2*np.pi*(2/dur)*x)        # slow breathing
     return seamless(sig*env, xf=4.0)
 
+# ── Forest: soft wind through leaves + occasional birdsong ──────────────────
+def forest(dur=22):
+    n = int(dur*SR); x = t(dur)
+    leaves = onepole_hp(onepole_lp(rng.standard_normal(n), 0.2), 0.02)
+    env = 0.5 + 0.5*np.sin(2*np.pi*(2/dur)*x - 0.8)
+    bed = leaves * env * 0.5
+    birds = np.zeros(n)
+    safe = n - int(3.0*SR)                            # keep chirps off the seam
+    for _ in range(int(dur*1.4)):
+        i = rng.integers(0, safe); f0 = rng.uniform(1800, 3600)
+        pos = i
+        for _b in range(int(rng.integers(2, 5))):
+            L = int(SR*rng.uniform(0.03, 0.07))
+            if pos+L >= n: break
+            tt = np.arange(L)/SR
+            f = f0*(1 + rng.uniform(-0.1, 0.25)*(tt/(L/SR)))
+            e = np.sin(np.pi*np.linspace(0, 1, L))**2
+            birds[pos:pos+L] += np.sin(2*np.pi*f*tt)*e*rng.uniform(0.15, 0.32)
+            pos += L + int(SR*rng.uniform(0.02, 0.06))
+    return seamless(bed + birds, xf=2.0)
+
+# ── Fireplace: warm low rumble + random crackles and the odd snap ───────────
+def fireplace(dur=20):
+    n = int(dur*SR)
+    rumble = onepole_lp(np.cumsum(rng.standard_normal(n)), 0.0006)
+    rumble = onepole_lp(rumble, 0.03)
+    rumble = rumble/(np.max(np.abs(rumble)) or 1)*0.5
+    crack = np.zeros(n); safe = n - int(2.0*SR)
+    for _ in range(int(dur*45)):                      # fine crackle
+        i = rng.integers(0, safe); L = int(SR*rng.uniform(0.004, 0.02))
+        e = np.exp(-np.linspace(0, 8, L))
+        crack[i:i+L] += onepole_hp(rng.standard_normal(L), 0.5)*e*rng.uniform(0.1, 0.5)
+    for _ in range(int(dur*3)):                       # occasional snap
+        i = rng.integers(0, safe); L = int(SR*rng.uniform(0.02, 0.05))
+        e = np.exp(-np.linspace(0, 6, L))
+        crack[i:i+L] += onepole_hp(rng.standard_normal(L), 0.3)*e*rng.uniform(0.5, 0.9)
+    return seamless(rumble + crack, xf=1.5)
+
 if __name__ == "__main__":
     print("Synthesizing ambiences ->", OUT)
     save("ocean_waves.wav", waves())
     save("rain.wav", rain())
     save("singing_bowl.wav", bowl())
     save("warm_pad.wav", pad())
+    save("forest.wav", forest())
+    save("fireplace.wav", fireplace())
     print("done.")

@@ -83,6 +83,13 @@ class _HoldMeScreenState extends State<HoldMeScreen>
     setState(() {});
   }
 
+  /// First tap (re)starts the sound bed if a browser blocked autoplay.
+  void _onUserGesture() {
+    if (NestScope.read(context).soundEnabled && !_ambience.isPlaying) {
+      _ambience.play(Ambience.pad);
+    }
+  }
+
   @override
   void dispose() {
     _ambience.dispose();
@@ -95,74 +102,80 @@ class _HoldMeScreenState extends State<HoldMeScreen>
     final text = Theme.of(context).textTheme;
     final soundOn = NestScope.of(context).soundEnabled;
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: NestTheme.sanctuaryGradient),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              Align(
-                alignment: Alignment.topLeft,
-                child: IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Colors.white),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ),
-              Align(
-                alignment: Alignment.topRight,
-                child: IconButton(
-                  icon: Icon(
-                    soundOn
-                        ? Icons.volume_up_rounded
-                        : Icons.volume_off_rounded,
-                    color: Colors.white,
+      body: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _onUserGesture(),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: NestTheme.sanctuaryGradient,
+          ),
+          child: SafeArea(
+            child: Stack(
+              children: [
+                Align(
+                  alignment: Alignment.topLeft,
+                  child: IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
-                  onPressed: _toggleSound,
                 ),
-              ),
-              if (_finished)
-                _Farewell(
-                  newBadges: _newBadges,
-                  onClose: () => Navigator.of(context).pop(),
-                )
-              else
-                Column(
-                  children: [
-                    const Spacer(flex: 2),
-                    Text(
-                      'Hold Me',
-                      style: text.headlineSmall?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const Spacer(flex: 1),
-                    const BreathingOrb(
-                      pattern: _pattern,
-                      size: 300,
+                Align(
+                  alignment: Alignment.topRight,
+                  child: IconButton(
+                    icon: Icon(
+                      soundOn
+                          ? Icons.volume_up_rounded
+                          : Icons.volume_off_rounded,
                       color: Colors.white,
-                      coreColor: Color(0xFF8FB0E0),
                     ),
-                    const Spacer(flex: 1),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 40),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 900),
-                        child: Text(
-                          _messages[_msgIndex],
-                          key: ValueKey(_msgIndex),
-                          textAlign: TextAlign.center,
-                          style: text.titleLarge?.copyWith(
-                            color: Colors.white,
-                            height: 1.5,
-                            fontWeight: FontWeight.w400,
+                    onPressed: _toggleSound,
+                  ),
+                ),
+                if (_finished)
+                  _Farewell(
+                    newBadges: _newBadges,
+                    onClose: () => Navigator.of(context).pop(),
+                  )
+                else
+                  Column(
+                    children: [
+                      const Spacer(flex: 2),
+                      Text(
+                        'Hold Me',
+                        style: text.headlineSmall?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const Spacer(flex: 1),
+                      const BreathingOrb(
+                        pattern: _pattern,
+                        size: 300,
+                        color: Colors.white,
+                        coreColor: Color(0xFF8FB0E0),
+                      ),
+                      const Spacer(flex: 1),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 40),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 900),
+                          child: Text(
+                            _messages[_msgIndex],
+                            key: ValueKey(_msgIndex),
+                            textAlign: TextAlign.center,
+                            style: text.titleLarge?.copyWith(
+                              color: Colors.white,
+                              height: 1.5,
+                              fontWeight: FontWeight.w400,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const Spacer(flex: 2),
-                  ],
-                ),
-            ],
+                      const Spacer(flex: 2),
+                    ],
+                  ),
+              ],
+            ),
           ),
         ),
       ),
