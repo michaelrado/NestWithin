@@ -48,6 +48,7 @@ export const ADMIN_HTML = `<!DOCTYPE html>
   .tag.on{background:#e7f0e6;color:#3c6b3a}
   .tag.off{background:#f6ddd2;color:#a84e2a}
   .tag.demo{background:var(--creamD);color:var(--soft)}
+  .tag.adm{background:var(--blue);color:#fff}
   .tag.unv{background:#f3ecd6;color:#9a7d2e}
   .err{color:#a84e2a;margin-top:8px;min-height:18px}
   .hidden{display:none}
@@ -63,8 +64,9 @@ export const ADMIN_HTML = `<!DOCTYPE html>
 <main>
   <div id="loginView" class="login card">
     <h2 style="margin-top:0">Admin sign in</h2>
-    <p class="muted">Enter the admin password to continue.</p>
-    <input id="pw" type="password" placeholder="Admin password" onkeydown="if(event.key==='Enter')login()">
+    <p class="muted">Sign in with your admin email and password.</p>
+    <input id="adminEmail" type="email" placeholder="Admin email" autocomplete="username">
+    <input id="pw" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()">
     <button class="btn" onclick="login()">Enter</button>
     <div id="loginErr" class="err"></div>
   </div>
@@ -82,6 +84,15 @@ export const ADMIN_HTML = `<!DOCTYPE html>
       </div>
     </div>
     <h2>Users</h2>
+    <div class="card" style="margin-bottom:14px">
+      <b>Add an admin</b>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <input id="adName" placeholder="Name" style="flex:1;min-width:120px;padding:10px 12px;border:1px solid var(--sand);border-radius:10px">
+        <input id="adEmail" type="email" placeholder="Email" style="flex:2;min-width:160px;padding:10px 12px;border:1px solid var(--sand);border-radius:10px">
+        <button class="btn sm" onclick="addAdmin()">Add admin &amp; email them</button>
+      </div>
+      <div id="adMsg" class="muted" style="margin-top:8px;min-height:16px"></div>
+    </div>
     <div class="card" style="overflow-x:auto">
       <table>
         <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Sessions</th><th>Status</th><th></th></tr></thead>
@@ -121,14 +132,36 @@ async function api(path,opts){
 
 async function login(){
   var pw = document.getElementById('pw').value;
+  var email = document.getElementById('adminEmail').value.trim();
   var err = document.getElementById('loginErr');
   err.textContent='';
+  var body = email ? {email:email, password:pw} : {password:pw};
   try{
-    var r = await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    var r = await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     var j = await r.json();
-    if(!r.ok){ err.textContent = j.error==='admin_not_configured' ? 'Admin is not configured on the server.' : 'Incorrect password.'; return; }
+    if(!r.ok){
+      err.textContent = j.error==='admin_not_configured' ? 'Admin is not configured on the server.'
+        : (j.error==='account_disabled' ? 'This admin account is disabled.' : 'Incorrect email or password.');
+      return;
+    }
     setToken(j.token); document.getElementById('pw').value=''; show(true); loadAll();
   }catch(e){ err.textContent='Could not reach the server.'; }
+}
+
+async function addAdmin(){
+  var name = document.getElementById('adName').value.trim();
+  var email = document.getElementById('adEmail').value.trim();
+  var msg = document.getElementById('adMsg');
+  if(!email){ msg.textContent='Enter an email address.'; return; }
+  msg.textContent='Adding…';
+  try{
+    var r = await api('/admins',{method:'POST',body:JSON.stringify({name:name,email:email})});
+    msg.textContent = r.emailed
+      ? ('Done — '+(r.created?'created':'promoted')+' '+email+' and sent a welcome email.')
+      : ('Saved '+email+', but the email failed: '+(r.mailError||'unknown'));
+    document.getElementById('adName').value=''; document.getElementById('adEmail').value='';
+    loadAll();
+  }catch(e){ msg.textContent='Could not add admin.'; }
 }
 function logout(){ clearToken(); show(false); }
 
@@ -166,6 +199,7 @@ async function loadUsers(){
   document.getElementById('userRows').innerHTML = data.users.map(function(u){
     var status = u.disabled? '<span class="tag off">disabled</span>'
       : (u.email_verified? '<span class="tag on">active</span>' : '<span class="tag unv">unverified</span>');
+    if(u.is_admin) status += ' <span class="tag adm">admin</span>';
     if(u.is_demo) status += ' <span class="tag demo">demo</span>';
     var btn = u.is_demo ? '' :
       '<button class="btn sm '+(u.disabled?'ghost':'warn')+'" onclick="toggleDisable('+u.id+','+(u.disabled?0:1)+')">'+(u.disabled?'Enable':'Disable')+'</button>';

@@ -94,5 +94,10 @@ The same service serves a password-protected admin console at
 a dashboard (signups today / 7-day / total, sessions logged, most-active users,
 most-popular activities) and a users table where you can **view and
 disable/enable** accounts (disabled users can't sign in; demo users are
-protected). The password is `ADMIN_PASSWORD` in `/etc/nest-api.env`, generated
-on first deploy and printed by `deploy-api.sh`.
+protected).
+
+**Admins** sign in with their **email + password**. Add more from the console
+("Add an admin" → creates/promotes the account and emails them a welcome with a
+temporary password). The shared `ADMIN_PASSWORD` in `/etc/nest-api.env`
+(generated on first deploy, printed by `deploy-api.sh`) still works as a master
+fallback for bootstrapping.

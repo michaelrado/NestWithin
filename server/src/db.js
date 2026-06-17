@@ -18,6 +18,7 @@ db.exec(`
     email_verified INTEGER NOT NULL DEFAULT 0,
     is_demo       INTEGER NOT NULL DEFAULT 0,
     disabled      INTEGER NOT NULL DEFAULT 0,
+    is_admin      INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT NOT NULL
   );
 
@@ -51,6 +52,7 @@ function ensureColumn(table, col, def) {
   }
 }
 ensureColumn('users', 'disabled', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('users', 'is_admin', 'INTEGER NOT NULL DEFAULT 0');
 
 export function newToken(userId, kind, ttlHours) {
   const token = randomUUID().replace(/-/g, '');

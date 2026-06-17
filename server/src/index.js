@@ -1,10 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import { timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual, randomBytes } from 'node:crypto';
 
 import { db, newToken, consumeToken, seedDemo } from './db.js';
 import { hash, verify, signToken, signAdmin, requireAuth, requireAdmin } from './auth.js';
-import { sendVerifyEmail, sendResetEmail, mailConfigured } from './mail.js';
+import { sendVerifyEmail, sendResetEmail, sendAdminWelcome, mailConfigured } from './mail.js';
 import { ADMIN_HTML } from './admin.js';
 
 const PORT = process.env.PORT || 8091;
@@ -171,13 +171,70 @@ app.get('/api/stats/active-users', (_req, res) => {
 // ── Admin console (/nirvana) ─────────────────────────────────────────────--
 app.get(['/nirvana', '/nirvana/'], (_req, res) => res.type('html').send(ADMIN_HTML));
 
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  // Named admin: sign in with an admin account's email + password.
+  if (email) {
+    const user = db
+      .prepare('SELECT * FROM users WHERE email = ?')
+      .get(String(email).toLowerCase());
+    if (!user || !user.is_admin) return res.status(401).json({ error: 'bad_password' });
+    if (user.disabled) return res.status(403).json({ error: 'account_disabled' });
+    if (!(await verify(password, user.password_hash)))
+      return res.status(401).json({ error: 'bad_password' });
+    return res.json({ token: signAdmin(), name: user.name });
+  }
+  // Master password fallback.
   if (!ADMIN_PASSWORD) return res.status(503).json({ error: 'admin_not_configured' });
-  const given = Buffer.from(String((req.body || {}).password || ''));
+  const given = Buffer.from(String(password || ''));
   const expected = Buffer.from(ADMIN_PASSWORD);
   const ok = given.length === expected.length && timingSafeEqual(given, expected);
   if (!ok) return res.status(401).json({ error: 'bad_password' });
   res.json({ token: signAdmin() });
+});
+
+// Create or promote an admin, then email them a welcome with how to sign in.
+app.post('/api/admin/admins', requireAdmin, async (req, res) => {
+  const { name, email, regenerate } = req.body || {};
+  if (!emailOk(email)) return res.status(400).json({ error: 'invalid_email' });
+  const lower = String(email).toLowerCase();
+  const display = (name && name.trim()) || lower.split('@')[0];
+  const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(lower);
+
+  let tempPw = null;
+  if (existing) {
+    // Promote. Optionally (re)issue a temp password — useful if the welcome
+    // email failed the first time, or the account was admin-only with no known
+    // password. We never reset the password of an account that signed up
+    // normally unless regenerate is explicitly requested.
+    const adminOnly = existing.referral === 'admin';
+    if (regenerate || adminOnly) {
+      tempPw = randomBytes(9).toString('base64url');
+      db.prepare(
+        'UPDATE users SET is_admin = 1, email_verified = 1, password_hash = ? WHERE id = ?',
+      ).run(await hash(tempPw), existing.id);
+    } else {
+      db.prepare('UPDATE users SET is_admin = 1, email_verified = 1 WHERE id = ?').run(existing.id);
+    }
+  } else {
+    tempPw = randomBytes(9).toString('base64url'); // ~12 chars
+    db.prepare(
+      `INSERT INTO users (name, email, password_hash, referral, rating, anonymous, email_verified, is_admin, created_at)
+       VALUES (?, ?, ?, 'admin', 0, 0, 1, 1, ?)`,
+    ).run(display, lower, await hash(tempPw), new Date().toISOString());
+  }
+
+  let emailed = true;
+  let mailError = null;
+  try {
+    await sendAdminWelcome(lower, display, tempPw);
+  } catch (e) {
+    emailed = false;
+    mailError = e.message;
+  }
+  // tempPassword is returned to the (already-authenticated) admin caller as a
+  // fallback for when email delivery is unavailable.
+  res.json({ ok: true, created: !existing, emailed, mailError, tempPassword: tempPw });
 });
 
 app.get('/api/admin/stats', requireAdmin, (_req, res) => {
@@ -212,9 +269,9 @@ app.get('/api/admin/users', requireAdmin, (_req, res) => {
   const users = db
     .prepare(
       `SELECT u.id, u.name, u.email, u.referral, u.rating, u.anonymous,
-              u.email_verified, u.disabled, u.is_demo, u.created_at,
+              u.email_verified, u.disabled, u.is_demo, u.is_admin, u.created_at,
               (SELECT COUNT(*) FROM activity a WHERE a.user_id = u.id) AS sessions
-       FROM users u ORDER BY u.is_demo ASC, u.created_at DESC`,
+       FROM users u ORDER BY u.is_admin DESC, u.is_demo ASC, u.created_at DESC`,
     )
     .all();
   res.json({ users });
