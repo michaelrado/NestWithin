@@ -76,6 +76,35 @@ export async function scrollDown(page: Page, dy = 380) {
   await page.waitForTimeout(900);
 }
 
+/// Login screen field positions at 412x915.
+export const LOGIN = {
+  email: { x: 206, y: 200 },
+  password: { x: 206, y: 261 },
+  signIn: { x: 206, y: 345 },
+};
+
+/// From Home, navigate Studio → membership → signup → login.
+export async function gotoLogin(page: Page) {
+  await tap(page, NAV.bottomNav.studio);
+  if (!(await clickButton(page, /become a member|manage membership/i))) {
+    await tap(page, { x: 110, y: 300 });
+  }
+  await clickButton(page, /create (your )?account|get started/i);
+  await clickButton(page, /already have an account/i);
+  await page.waitForTimeout(1000);
+}
+
+/// Type credentials into the (canvas) login fields and sign in. Flutter web
+/// exposes a hidden input for the focused field, so keyboard.type works.
+export async function login(page: Page, email: string, password: string) {
+  await tap(page, LOGIN.email);
+  await page.keyboard.type(email, { delay: 15 });
+  await tap(page, LOGIN.password);
+  await page.keyboard.type(password, { delay: 15 });
+  if (!(await clickButton(page, /sign in/i))) await tap(page, LOGIN.signIn);
+  await page.waitForTimeout(3000);
+}
+
 /// Go to the app, cross the splash, and land on Home.
 export async function boot(page: Page) {
   await page.goto('/', { waitUntil: 'load' });

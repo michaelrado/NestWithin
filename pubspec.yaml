@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # Single source of truth for the version is /version.json — tool/gen-version.sh
 # writes this line and lib/version.dart. Do not hand-edit the number below.
-version: 0.1.0+2
+version: 0.1.0+3
 
 environment:
   sdk: ^3.9.0
