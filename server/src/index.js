@@ -1,12 +1,15 @@
 import express from 'express';
 import cors from 'cors';
+import { timingSafeEqual } from 'node:crypto';
 
 import { db, newToken, consumeToken, seedDemo } from './db.js';
-import { hash, verify, signToken, requireAuth } from './auth.js';
+import { hash, verify, signToken, signAdmin, requireAuth, requireAdmin } from './auth.js';
 import { sendVerifyEmail, sendResetEmail, mailConfigured } from './mail.js';
+import { ADMIN_HTML } from './admin.js';
 
 const PORT = process.env.PORT || 8091;
 const APP_URL = process.env.APP_URL || 'https://nestwithin.mrrado.com';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
 seedDemo();
 
@@ -71,6 +74,7 @@ app.post('/api/auth/login', async (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get((email || '').toLowerCase());
   if (!user || !(await verify(password, user.password_hash)))
     return res.status(401).json({ error: 'bad_credentials' });
+  if (user.disabled) return res.status(403).json({ error: 'account_disabled' });
   res.json({ token: signToken(user), user: publicUser(user) });
 });
 
@@ -162,6 +166,70 @@ app.get('/api/stats/active-users', (_req, res) => {
     anonymous: !!r.anonymous,
   }));
   res.json({ users });
+});
+
+// ── Admin console (/nirvana) ─────────────────────────────────────────────--
+app.get(['/nirvana', '/nirvana/'], (_req, res) => res.type('html').send(ADMIN_HTML));
+
+app.post('/api/admin/login', (req, res) => {
+  if (!ADMIN_PASSWORD) return res.status(503).json({ error: 'admin_not_configured' });
+  const given = Buffer.from(String((req.body || {}).password || ''));
+  const expected = Buffer.from(ADMIN_PASSWORD);
+  const ok = given.length === expected.length && timingSafeEqual(given, expected);
+  if (!ok) return res.status(401).json({ error: 'bad_password' });
+  res.json({ token: signAdmin() });
+});
+
+app.get('/api/admin/stats', requireAdmin, (_req, res) => {
+  const one = (sql) => db.prepare(sql).get().n;
+  res.json({
+    signupsTotal: one('SELECT COUNT(*) n FROM users WHERE is_demo = 0'),
+    signups7d: one(
+      "SELECT COUNT(*) n FROM users WHERE is_demo = 0 AND created_at >= datetime('now','-7 days')",
+    ),
+    signupsToday: one(
+      "SELECT COUNT(*) n FROM users WHERE is_demo = 0 AND date(created_at) = date('now')",
+    ),
+    disabledCount: one('SELECT COUNT(*) n FROM users WHERE disabled = 1'),
+    totalSessions: one('SELECT COUNT(*) n FROM activity'),
+    topUsers: db
+      .prepare(
+        `SELECT u.id, u.name, u.anonymous, u.is_demo, COUNT(a.id) AS sessions
+         FROM users u JOIN activity a ON a.user_id = u.id
+         GROUP BY u.id ORDER BY sessions DESC LIMIT 10`,
+      )
+      .all(),
+    popular: db
+      .prepare(
+        `SELECT practice_id AS practiceId, COUNT(*) AS count
+         FROM activity GROUP BY practice_id ORDER BY count DESC LIMIT 10`,
+      )
+      .all(),
+  });
+});
+
+app.get('/api/admin/users', requireAdmin, (_req, res) => {
+  const users = db
+    .prepare(
+      `SELECT u.id, u.name, u.email, u.referral, u.rating, u.anonymous,
+              u.email_verified, u.disabled, u.is_demo, u.created_at,
+              (SELECT COUNT(*) FROM activity a WHERE a.user_id = u.id) AS sessions
+       FROM users u ORDER BY u.is_demo ASC, u.created_at DESC`,
+    )
+    .all();
+  res.json({ users });
+});
+
+app.post('/api/admin/users/:id/disable', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const user = db.prepare('SELECT is_demo FROM users WHERE id = ?').get(id);
+  if (!user) return res.status(404).json({ error: 'not_found' });
+  if (user.is_demo) return res.status(400).json({ error: 'cannot_modify_demo' });
+  db.prepare('UPDATE users SET disabled = ? WHERE id = ?').run(
+    (req.body || {}).disabled ? 1 : 0,
+    id,
+  );
+  res.json({ ok: true });
 });
 
 app.listen(PORT, '127.0.0.1', () =>

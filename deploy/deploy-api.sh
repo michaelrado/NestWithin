@@ -59,12 +59,14 @@ ssh "$HOST" "
   set -e
   if [ ! -f /etc/nest-api.env ]; then
     SECRET=\$(openssl rand -hex 32)
+    ADMINPW=\$(openssl rand -hex 12)
     cat > /etc/nest-api.env <<EOF
 PORT=8091
 NEST_DB=/var/lib/nest-api/nest.db
 APP_URL=https://nestwithin.mrrado.com
 PUBLIC_URL=https://nestwithin.mrrado.com
 JWT_SECRET=\$SECRET
+ADMIN_PASSWORD=\$ADMINPW
 MAILGUN_API_KEY=
 MAILGUN_DOMAIN=
 MAILGUN_REGION=US
@@ -73,6 +75,12 @@ EOF
     chmod 600 /etc/nest-api.env
     echo 'wrote starter /etc/nest-api.env (Mailgun blank → stub mode)'
   fi
+  # ensure an admin password exists (for envs created before /nirvana)
+  if ! grep -q '^ADMIN_PASSWORD=' /etc/nest-api.env; then
+    echo \"ADMIN_PASSWORD=\$(openssl rand -hex 12)\" >> /etc/nest-api.env
+    echo 'generated ADMIN_PASSWORD in /etc/nest-api.env'
+  fi
+  echo \"admin login at /nirvana — password: \$(grep '^ADMIN_PASSWORD=' /etc/nest-api.env | cut -d= -f2)\"
   mkdir -p /var/lib/nest-api
   chown -R www-data:www-data /var/lib/nest-api '$APPDIR'
   cp /tmp/nest-api.service /etc/systemd/system/nest-api.service

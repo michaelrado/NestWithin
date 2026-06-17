@@ -17,6 +17,7 @@ db.exec(`
     anonymous     INTEGER NOT NULL DEFAULT 0,
     email_verified INTEGER NOT NULL DEFAULT 0,
     is_demo       INTEGER NOT NULL DEFAULT 0,
+    disabled      INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT NOT NULL
   );
 
@@ -41,6 +42,15 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_activity_practice ON activity(practice_id);
   CREATE INDEX IF NOT EXISTS idx_activity_user ON activity(user_id);
 `);
+
+// Lightweight migrations for databases created before a column existed.
+function ensureColumn(table, col, def) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === col)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+  }
+}
+ensureColumn('users', 'disabled', 'INTEGER NOT NULL DEFAULT 0');
 
 export function newToken(userId, kind, ttlHours) {
   const token = randomUUID().replace(/-/g, '');

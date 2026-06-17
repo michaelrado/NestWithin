@@ -86,3 +86,13 @@ in STUB mode (logged, not sent) until Mailgun is configured** — set
 `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_REGION`, and `MAIL_FROM` in that
 file (see [`server/.env.example`](server/.env.example)) and restart:
 `systemctl restart nest-api`.
+
+### Admin console — `/nirvana`
+
+The same service serves a password-protected admin console at
+**https://nestwithin.mrrado.com/nirvana** ([`server/src/admin.js`](server/src/admin.js)):
+a dashboard (signups today / 7-day / total, sessions logged, most-active users,
+most-popular activities) and a users table where you can **view and
+disable/enable** accounts (disabled users can't sign in; demo users are
+protected). The password is `ADMIN_PASSWORD` in `/etc/nest-api.env`, generated
+on first deploy and printed by `deploy-api.sh`.
