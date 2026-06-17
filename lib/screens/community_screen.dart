@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/api_client.dart';
 import '../data/community_stats.dart';
 import '../data/nest_scope.dart';
 import '../data/nest_store.dart';
@@ -9,14 +10,75 @@ import '../widgets/wellness_icon.dart';
 
 /// Connection without social media. No likes, no followers, no algorithms —
 /// just anonymous reflections and a quiet "Me too."
-class CommunityScreen extends StatelessWidget {
+///
+/// Community stats come from the backend when reachable, and fall back to a
+/// seeded baseline (blended with the user's own activity) when offline.
+class CommunityScreen extends StatefulWidget {
   const CommunityScreen({super.key});
+
+  @override
+  State<CommunityScreen> createState() => _CommunityScreenState();
+}
+
+class _CommunityScreenState extends State<CommunityScreen> {
+  final _api = ApiClient();
+  List<({Practice practice, int count})>? _popular;
+  List<ActiveUser>? _leaders;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    // capture identity before any await so we don't use context across a gap
+    final account = NestScope.read(context).account;
+    final myName = account?.name;
+    final myAnon = account?.anonymous ?? false;
+    try {
+      final popular = await _api.popular();
+      final mapped = <({Practice practice, int count})>[];
+      for (final p in popular) {
+        try {
+          mapped.add((
+            practice: NestContent.practiceById(p.practiceId),
+            count: p.count,
+          ));
+        } catch (_) {
+          // unknown id (e.g. a non-practice) — skip
+        }
+      }
+      final users = await _api.activeUsers();
+      final leaders = users
+          .map(
+            (u) => ActiveUser(
+              u.display,
+              u.practices,
+              u.favoritePracticeId,
+              anonymous: u.anonymous,
+              isMe: !myAnon && myName != null && u.display == myName,
+            ),
+          )
+          .toList();
+      if (mounted && mapped.isNotEmpty) {
+        setState(() {
+          _popular = mapped.take(6).toList();
+          _leaders = leaders;
+        });
+      }
+    } catch (_) {
+      // stay on the seeded fallback
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final store = NestScope.of(context);
     final text = Theme.of(context).textTheme;
     final reflections = store.reflections;
+    final popular = _popular ?? CommunityStats.popularActivities(store, top: 6);
+    final leaders = _leaders ?? CommunityStats.activeUsers(store, top: 8);
 
     return Container(
       decoration: const BoxDecoration(gradient: NestTheme.calmGradient),
@@ -46,9 +108,9 @@ class CommunityScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   _ShareCard(store: store),
                   const SizedBox(height: 24),
-                  _PopularActivities(store: store),
+                  _PopularActivities(items: popular),
                   const SizedBox(height: 20),
-                  _Leaderboard(store: store),
+                  _Leaderboard(users: leaders),
                   const SizedBox(height: 24),
                   Text(
                     'Reflections',
@@ -77,13 +139,13 @@ class CommunityScreen extends StatelessWidget {
 }
 
 class _PopularActivities extends StatelessWidget {
-  final NestStore store;
-  const _PopularActivities({required this.store});
+  final List<({Practice practice, int count})> items;
+  const _PopularActivities({required this.items});
 
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final popular = CommunityStats.popularActivities(store, top: 6);
+    final popular = items;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -186,13 +248,12 @@ class _PopularCard extends StatelessWidget {
 }
 
 class _Leaderboard extends StatelessWidget {
-  final NestStore store;
-  const _Leaderboard({required this.store});
+  final List<ActiveUser> users;
+  const _Leaderboard({required this.users});
 
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final users = CommunityStats.activeUsers(store, top: 8);
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(

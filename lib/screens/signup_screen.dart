@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../data/api_client.dart';
 import '../data/nest_scope.dart';
 import '../theme/app_theme.dart';
+import 'login_screen.dart';
 
 /// Create an account — name, email, how you heard about us, and a quick rating.
 /// Unlocks the full library. (Email confirmation + password reset are handled
@@ -19,6 +21,8 @@ class _SignupScreenState extends State<SignupScreen> {
   final _form = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _email = TextEditingController();
+  final _password = TextEditingController();
+  bool _obscure = true;
   String _referral = 'A friend';
   int _rating = 5;
   bool _anonymous = false;
@@ -38,19 +42,30 @@ class _SignupScreenState extends State<SignupScreen> {
   void dispose() {
     _name.dispose();
     _email.dispose();
+    _password.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
     setState(() => _submitting = true);
-    await NestScope.read(context).signUp(
-      name: _name.text,
-      email: _email.text,
-      referral: _referral,
-      rating: _rating,
-      anonymous: _anonymous,
-    );
+    try {
+      await NestScope.read(context).signUp(
+        name: _name.text,
+        email: _email.text,
+        password: _password.text,
+        referral: _referral,
+        rating: _rating,
+        anonymous: _anonymous,
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
+      return;
+    }
     if (!mounted) return;
     Navigator.of(context).pop(true);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -111,6 +126,24 @@ class _SignupScreenState extends State<SignupScreen> {
               },
             ),
             const SizedBox(height: 14),
+            _field(
+              controller: _password,
+              label: 'Password',
+              icon: Icons.lock_outline_rounded,
+              obscure: _obscure,
+              suffix: IconButton(
+                icon: Icon(
+                  _obscure
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  color: NestColors.inkSoft,
+                ),
+                onPressed: () => setState(() => _obscure = !_obscure),
+              ),
+              validator: (v) =>
+                  (v == null || v.length < 8) ? 'At least 8 characters' : null,
+            ),
+            const SizedBox(height: 14),
             _dropdown(),
             const SizedBox(height: 22),
             Text(
@@ -155,6 +188,15 @@ class _SignupScreenState extends State<SignupScreen> {
               textAlign: TextAlign.center,
               style: text.bodySmall?.copyWith(color: NestColors.inkSoft),
             ),
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                ),
+                child: const Text('Already have an account? Sign in'),
+              ),
+            ),
           ],
         ),
       ),
@@ -167,15 +209,19 @@ class _SignupScreenState extends State<SignupScreen> {
     required IconData icon,
     TextInputType? keyboard,
     String? Function(String?)? validator,
+    bool obscure = false,
+    Widget? suffix,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboard,
       validator: validator,
+      obscureText: obscure,
       textInputAction: TextInputAction.next,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: NestColors.blue),
+        suffixIcon: suffix,
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(

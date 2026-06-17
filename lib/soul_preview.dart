@@ -37,7 +37,9 @@ class _PreviewAppState extends State<_PreviewApp>
       debugShowCheckedModeBanner: false,
       home: Scaffold(
         body: Container(
-          decoration: const BoxDecoration(gradient: NestTheme.sanctuaryGradient),
+          decoration: const BoxDecoration(
+            gradient: NestTheme.sanctuaryGradient,
+          ),
           child: Center(
             child: AnimatedBuilder(
               animation: _c,

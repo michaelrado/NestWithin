@@ -62,3 +62,27 @@ Builds the web release, ships it to the VPS, installs the nginx vhost
 ([`deploy/nginx/nestwithin.conf`](deploy/nginx/nestwithin.conf)), and obtains a
 Let's Encrypt cert for `nestwithin.mrrado.com`. Override `HOST` / `DOMAIN` /
 `WEBROOT` via environment variables. Idempotent — safe to re-run.
+
+## Backend (`server/`)
+
+A small **Node + Express + SQLite** API ([`server/`](server/)) provides accounts
+(bcrypt + JWT), email confirmation & password reset via **Mailgun**, activity
+sync, and the cross-user community stats (most-loved activities + most-active
+leaderboard, honoring the Anonymous opt-out). It's served same-origin at
+`https://nestwithin.mrrado.com/api` (the web vhost proxies `/api` → the Node
+service on `127.0.0.1:8091`), so there's no extra domain, cert, or CORS.
+
+The Flutter client ([`lib/data/api_client.dart`](lib/data/api_client.dart)) talks
+to it **best-effort**: signup/login/stats use the API when reachable and fall
+back to local-only/seeded data when offline, so the app always works.
+
+```bash
+./deploy/deploy-api.sh     # installs Node, ships server/, runs it under systemd
+./deploy/deploy-web.sh     # (re)installs the nginx /api route
+```
+
+`deploy-api.sh` writes a starter `/etc/nest-api.env` on first run. **Email runs
+in STUB mode (logged, not sent) until Mailgun is configured** — set
+`MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_REGION`, and `MAIL_FROM` in that
+file (see [`server/.env.example`](server/.env.example)) and restart:
+`systemctl restart nest-api`.

@@ -1,0 +1,18 @@
+[Unit]
+Description=The Nest API (accounts, email, activity, community stats)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/nest-api
+EnvironmentFile=/etc/nest-api.env
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=3
+# data dir (NEST_DB) is created + chowned by the deploy script
+StateDirectory=nest-api
+
+[Install]
+WantedBy=multi-user.target

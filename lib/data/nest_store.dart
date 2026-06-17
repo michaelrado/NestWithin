@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -5,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/badges.dart';
 import '../models/content.dart';
+import 'api_client.dart';
 
 /// How many activities in each category are free before an account is needed.
 const int kFreePerCategory = 2;
@@ -106,8 +108,11 @@ class NestStore extends ChangeNotifier {
   static const _kSound = 'nest.sound.v1';
   static const _kHoldMe = 'nest.holdme.v1';
   static const _kBadges = 'nest.badges.v1';
+  static const _kToken = 'nest.token.v1';
 
+  final ApiClient _api = ApiClient();
   late SharedPreferences _prefs;
+  String? _token;
 
   List<CheckIn> _checkIns = [];
   List<Reflection> _userReflections = [];
@@ -131,6 +136,7 @@ class NestStore extends ChangeNotifier {
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     _onboarded = _prefs.getBool(_kOnboarded) ?? false;
+    _token = _prefs.getString(_kToken);
     _soundEnabled = _prefs.getBool(_kSound) ?? true;
     _holdMeCount = _prefs.getInt(_kHoldMe) ?? 0;
     _awardedBadges = (_prefs.getStringList(_kBadges) ?? []).toSet();
@@ -170,36 +176,96 @@ class NestStore extends ChangeNotifier {
   }
 
   // ── Account ────────────────────────────────────────────────────────────--
+  /// Creates the account. Tries the backend first (so email confirmation can be
+  /// sent and the user appears in cross-user stats); if the network is
+  /// unavailable, falls back to a local-only account so the app still works.
+  /// Rethrows [ApiException] (e.g. email already taken) for the UI to surface.
   Future<void> signUp({
     required String name,
     required String email,
+    required String password,
     required String referral,
     required int rating,
     required bool anonymous,
   }) async {
-    _account = NestAccount(
-      name: name.trim(),
-      email: email.trim(),
-      referral: referral,
-      rating: rating,
-      anonymous: anonymous,
-      joinedAt: DateTime.now(),
-    );
-    await _prefs.setString(_kAccount, jsonEncode(_account!.toJson()));
+    try {
+      final res = await _api.signup(
+        name: name,
+        email: email,
+        password: password,
+        referral: referral,
+        rating: rating,
+        anonymous: anonymous,
+      );
+      _token = res['token'] as String?;
+      _account = NestAccount.fromJson(res['user'] as Map<String, dynamic>);
+    } on ApiException {
+      rethrow; // handled errors (email taken, weak password…) bubble to the UI
+    } catch (_) {
+      // network/offline → local-only account
+      _account = NestAccount(
+        name: name.trim(),
+        email: email.trim(),
+        referral: referral,
+        rating: rating,
+        anonymous: anonymous,
+        joinedAt: DateTime.now(),
+      );
+    }
+    await _persistAccount();
     notifyListeners();
   }
+
+  /// Signs an existing user in via the backend. Requires connectivity.
+  Future<void> login({required String email, required String password}) async {
+    final res = await _api.login(email: email, password: password);
+    _token = res['token'] as String?;
+    _account = NestAccount.fromJson(res['user'] as Map<String, dynamic>);
+    await _persistAccount();
+    notifyListeners();
+  }
+
+  Future<void> requestPasswordReset(String email) => _api.requestReset(email);
 
   Future<void> setAnonymous(bool value) async {
     if (_account == null) return;
     _account = _account!.copyWith(anonymous: value);
     await _prefs.setString(_kAccount, jsonEncode(_account!.toJson()));
+    if (_token != null) {
+      unawaited(_api.patchMe(_token!, anonymous: value).catchError((_) {}));
+    }
     notifyListeners();
   }
 
   Future<void> signOut() async {
     _account = null;
+    _token = null;
     await _prefs.remove(_kAccount);
+    await _prefs.remove(_kToken);
     notifyListeners();
+  }
+
+  Future<void> _persistAccount() async {
+    if (_account != null) {
+      await _prefs.setString(_kAccount, jsonEncode(_account!.toJson()));
+    }
+    if (_token != null) {
+      await _prefs.setString(_kToken, _token!);
+    }
+  }
+
+  /// Best-effort sync of a completion to the backend (feeds the leaderboard).
+  void _syncActivity(String practiceId) {
+    if (_token == null) return;
+    String kind = '';
+    try {
+      kind = NestContent.practiceById(practiceId).kind.label;
+    } catch (_) {}
+    unawaited(
+      _api
+          .logActivity(_token!, practiceId: practiceId, kind: kind, seconds: 0)
+          .catchError((_) {}),
+    );
   }
 
   /// Free tier: the first [kFreePerCategory] items in any category are open;
@@ -262,6 +328,7 @@ class NestStore extends ChangeNotifier {
       _completed = _completed.sublist(_completed.length - 500);
     }
     await _prefs.setStringList(_kCompleted, _completed);
+    _syncActivity(practiceId);
     final newBadges = await _refreshBadges();
     notifyListeners();
     return newBadges;
